@@ -12,7 +12,7 @@ namespace ImageUtils
 {
     Mat monochromeImage(const Mat &image);
     Mat hist(const Mat &image);
-    Mat quantizedImage(const Mat &image);
+    Mat quantizedImage(const Mat &image, const int intervalQuant);
     Mat showImages(std::string &title, int imageCount, ...);
     
 }
