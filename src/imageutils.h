@@ -14,4 +14,7 @@ namespace ImageUtils
     Mat hist(const Mat &image);
     Mat quantizedImage(Mat &image, const int quantLevel);
     void imageProcessing(const Mat &image, std::function<void(int i, int j)> func);
+    Mat basisMatrix(int rows, int cols);
+    Mat discretCosineTransform(const Mat &image);
+
 }
