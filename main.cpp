@@ -1,5 +1,5 @@
-#include "imageutils.h"
 #include <iostream>
+#include "imageutils.h"
 
 int blockSize = 200;
 
@@ -29,7 +29,30 @@ static void onMouse(int event, int x, int y, int, void *param)
     std::cout << "Y: " << blockY << std::endl;
 }
 
-int main()
+void lab1()
+{
+    auto width = 400;
+    auto heigth = 400;
+    auto image = cv::imread("/home/mist/Downloads/zoro.jpeg");
+    auto imageMono = ImageUtils::monochromeImage(image);
+    auto histImg = ImageUtils::hist(imageMono);
+    resize(imageMono, imageMono, cv::Size(width, heigth));
+    resize(histImg, histImg, cv::Size(width, heigth));
+    Mat combinedImage;
+    hconcat(imageMono, histImg, combinedImage);
+    auto quant = ImageUtils::quantizedImage(imageMono, 2);
+    auto quantHist = ImageUtils::hist(imageMono);
+    resize(quant, quant, cv::Size(width, heigth));
+    resize(quantHist, quantHist, cv::Size(width, heigth));
+    Mat combinedImage2;
+    hconcat(quant, quantHist, combinedImage2);
+    Mat combinedImage3;
+    cv::vconcat(combinedImage, combinedImage2, combinedImage3);
+    imshow("После", combinedImage3);
+    cv::waitKey();
+}
+
+void lab2()
 {
     auto image = cv::imread("/home/mist/Downloads/zoro.jpeg");
     auto imageMono = ImageUtils::monochromeImage(image);
@@ -46,6 +69,24 @@ int main()
     cv::setMouseCallback("Сетка", onMouse, &imageWithBlocks);
 
     cv::waitKey();
+}
+
+void lab3()
+{
+    std::cout << "Пока в процессе";
+}
+
+int main(int argc, char *argv[])
+{
+    for (int i = 0; i < argc; ++i) {
+        auto arg = std::string(argv[i]);
+        if (arg == "-l1")
+            lab1();
+        else if (arg == "-l2")
+            lab2();
+        else if (arg == "-l3")
+            lab3();
+    }
 
     return 0;
 }
