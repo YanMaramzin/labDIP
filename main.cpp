@@ -40,8 +40,13 @@ void lab1()
     resize(histImg, histImg, cv::Size(width, heigth));
     Mat combinedImage;
     hconcat(imageMono, histImg, combinedImage);
-    auto quant = ImageUtils::quantizedImage(imageMono, 2);
-    auto quantHist = ImageUtils::hist(imageMono);
+    auto quantLevel = 64;
+    auto quant = ImageUtils::quantizedImage(imageMono, quantLevel);
+    auto intervalQuant = 255.0 / (quantLevel - 1);
+    auto sko = ImageUtils::sko(imageMono, quant);
+    auto skoOt = intervalQuant / sqrt(12);
+    std::cout << sko  << " " << skoOt;
+    auto quantHist = ImageUtils::hist(quant);
     resize(quant, quant, cv::Size(width, heigth));
     resize(quantHist, quantHist, cv::Size(width, heigth));
     Mat combinedImage2;
@@ -73,6 +78,26 @@ void lab2()
 
 void lab3()
 {
+    auto image = cv::imread("/home/mist/Downloads/zoro.jpeg");
+    auto imageMono = ImageUtils::monochromeImage(image);
+    Mat blur3;
+    Mat blur32;
+    Mat blur5;
+    Mat blur52;
+    ImageUtils::gauss(imageMono, blur3, 3, 0.6);
+    ImageUtils::gauss(imageMono, blur32, 3, 0.7);
+    ImageUtils::gauss(imageMono, blur5, 5, 0.6);
+    ImageUtils::gauss(imageMono, blur52, 5, 0.8);
+    cv::imshow("До", imageMono);
+    cv::imshow("После 3", blur3);
+    cv::imshow("После 5", blur5);
+    Mat diff;
+    cv::absdiff(blur52, blur5, diff);
+    cv::imshow("Контур", diff * 7);
+    Mat contour;
+    cv::Canny(image, contour, 50, 200);
+    cv::imshow("Контур Кэнни", contour);
+    cv::waitKey();
     std::cout << "Пока в процессе";
 }
 

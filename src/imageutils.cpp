@@ -1,10 +1,25 @@
 //
 // Created by mist on 19.02.24.
 //
+#include <numeric>
 #include "imageutils.h"
 using cv::Vec3b;
 
-Mat ImageUtils::monochromeImage(const Mat &image)
+namespace ImageUtils {
+struct ImageHandler::Pimpl
+{
+
+};
+
+ImageHandler::ImageHandler() :
+    m_d(std::make_unique<Pimpl>())
+{}
+
+ImageHandler::~ImageHandler()
+{}
+
+
+Mat monochromeImage(const Mat &image)
 {
     Mat resultImage = Mat::zeros(image.rows, image.cols, CV_8UC1);
     imageProcessing(image, [image, &resultImage](int i, int j)
@@ -16,7 +31,7 @@ Mat ImageUtils::monochromeImage(const Mat &image)
     return resultImage;
 }
 
-Mat ImageUtils::hist(const cv::Mat &image)
+Mat hist(const cv::Mat &image)
 {
     Mat hist = Mat::zeros(1, 256,CV_64FC1);
     imageProcessing(image, [image, &hist](int i, int j)
@@ -40,7 +55,7 @@ Mat ImageUtils::hist(const cv::Mat &image)
     return histImg;
 }
 
-Mat ImageUtils::quantizedImage(Mat &image, const int quantLevel)
+Mat quantizedImage(Mat &image, const int quantLevel)
 {
     Mat resultImage = Mat::zeros(image.rows, image.cols, CV_8UC1);
     auto intervalQuant = 255.0 / (quantLevel - 1);
@@ -51,7 +66,7 @@ Mat ImageUtils::quantizedImage(Mat &image, const int quantLevel)
     return resultImage;
 }
 
-void ImageUtils::imageProcessing(const Mat &image, std::function<void(int i, int j)> func)
+void imageProcessing(const Mat &image, std::function<void(int i, int j)> func)
 {
     for (int i = 0; i < image.rows; ++i) {
         for (int j = 0; j < image.cols; ++j) {
@@ -60,7 +75,7 @@ void ImageUtils::imageProcessing(const Mat &image, std::function<void(int i, int
     }
 }
 
-Mat ImageUtils::basisMatrix(int rows, int cols)
+Mat basisMatrix(int rows, int cols)
 {
     Mat basisMatrix = Mat::zeros(rows, cols, CV_64F);
 
@@ -76,7 +91,7 @@ Mat ImageUtils::basisMatrix(int rows, int cols)
     return basisMatrix;
 }
 
-Mat ImageUtils::discretCosineTransform(const Mat &image)
+Mat discretCosineTransform(const Mat &image)
 {
     Mat basMat = basisMatrix(image.rows, image.cols);
     Mat basMatTransp = basMat.t();
@@ -87,4 +102,64 @@ Mat ImageUtils::discretCosineTransform(const Mat &image)
     DCT.convertTo(DCT, CV_8U);
 
     return DCT;
+}
+
+double sko(const Mat &image, const Mat quantImage)
+{
+    double sum {0};
+    imageProcessing(image, [&image, &quantImage, &sum](int i, int j)
+    {
+        sum += std::pow(image.at<uchar>(i, j) - quantImage.at<uchar>(i, j),2);
+    });
+    double sko = sqrt(1.0 / (image.rows * image.cols) * sum);
+    return  sko;
+}
+
+void gauss(const Mat &inputImg, Mat &outputImg, int maskSize, float sko)
+{
+    outputImg = Mat::zeros(inputImg.size(), CV_8U);
+    auto F = gaussMask(sko, maskSize, maskSize);
+    int maskMin = (maskSize + 1) / 2 - maskSize;
+    int maskMax = maskSize - (maskSize + 1) / 2;
+
+    for (int i = 0; i < inputImg.cols; ++i)
+        for (int j = 0; j < inputImg.rows; ++j) {
+            float Rez = 0.0f;
+            for (int ii = maskMin; ii <= maskMax; ++ii)
+                for (int jj = maskMin; jj <= maskMax; ++jj) {
+                    uchar blurred = inputImg.at<uchar>(j + jj, i + ii);
+                    Rez += F[ii + maskMax][jj + maskMax] * blurred;
+                }
+            outputImg.at<uchar>(j, i) = Rez;
+        }
+}
+
+void mosaic(const Mat &inputImg, Mat &outputImg)
+{
+
+}
+
+std::vector<std::vector<double>> gaussMask(const float sigma, int rows, int cols)
+{
+    std::vector<std::vector<double>> mask(rows, std::vector<double>(cols));
+    int xMin = (rows + 1) / 2 - rows;
+    int xMax = rows - (rows + 1) / 2;
+    int yMin = (cols + 1) / 2 - cols;
+    int yMax = cols - (cols + 1) / 2;
+
+    for (size_t i = 0; i < rows; ++i) {
+        int x = newRangeValue(0, rows - 1, xMin, xMax, i);
+        for (size_t j = 0; j < cols; ++j) {
+            int y = newRangeValue(0, cols - 1, yMin, yMax, j);
+            mask[i][j] = exp(-(pow(x, 2) + pow(y,2)) / (2 * pow(sigma, 2))) / (2 * M_PI * pow(sigma, 2));
+        }
+    }
+    return mask;
+}
+
+int newRangeValue(int oldMin, int oldMax, int newMin, int newMax, int value)
+{
+    return (value - oldMin) * (newMax - newMin) / (oldMax - oldMin) + newMin;
+}
+
 }
