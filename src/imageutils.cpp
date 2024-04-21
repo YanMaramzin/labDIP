@@ -87,7 +87,6 @@ Mat basisMatrix(int rows, int cols)
             basisMatrix.at<double>(n, k) = sqrt(2.0 / basisMatrix.rows) * cos((M_PI * n) * (k + 1.0f / 2) / basisMatrix.rows);
     });
 
-
     return basisMatrix;
 }
 
@@ -122,7 +121,7 @@ void gauss(const Mat &inputImg, Mat &outputImg, int maskSize, float sko)
     int maskMin = (maskSize + 1) / 2 - maskSize;
     int maskMax = maskSize - (maskSize + 1) / 2;
 
-    for (int i = 0; i < inputImg.cols; ++i)
+    for (int i = 0; i < inputImg.cols; ++i) {
         for (int j = 0; j < inputImg.rows; ++j) {
             float Rez = 0.0f;
             for (int ii = maskMin; ii <= maskMax; ++ii)
@@ -132,20 +131,49 @@ void gauss(const Mat &inputImg, Mat &outputImg, int maskSize, float sko)
                 }
             outputImg.at<uchar>(j, i) = Rez;
         }
+    }
 }
 
-void mosaic(const Mat &inputImg, Mat &outputImg)
+Mat gaussDiff(const Mat &gauss1, const Mat &gauss2)
 {
+    Mat output;
+    cv::absdiff(gauss1, gauss2, output);
+    return output;
+}
 
+void mosaic(const Mat &inputImg, Mat &outputImg, int maskSize)
+{
+    outputImg = Mat::zeros(inputImg.size(), CV_8U);
+    const auto maskMin = (maskSize + 1) / 2 - maskSize;
+    const auto maskMax = maskSize - (maskSize + 1) / 2;
+    auto pp = 1.0f / 9;
+    std::vector<std::vector<float>> mask {{pp, pp, pp},
+                                      {pp, pp, pp},
+                                      {pp, pp, pp}};
+
+     for (int i = 0; i < inputImg.cols; i += maskSize) {
+         for (int j = 0; j < inputImg.rows; j += maskSize) {
+             auto Rez {0.0f};
+             for (int ii = maskMin; ii <= maskMax; ++ii)
+                 for (int jj = maskMin; jj <= maskMax; ++jj) {
+                     uchar blurred = inputImg.at<uchar>(j + jj, i + ii);
+                     Rez += mask[ii + maskMax][jj + maskMax] * blurred;
+                 }
+             for (auto k = i; k <= i + maskSize; ++k) {
+                 for (auto l = j; l <= j + maskSize; ++l)
+                     outputImg.at<uchar>(l, k) = Rez;
+             }
+         }
+     }
 }
 
 std::vector<std::vector<double>> gaussMask(const float sigma, int rows, int cols)
 {
     std::vector<std::vector<double>> mask(rows, std::vector<double>(cols));
-    int xMin = (rows + 1) / 2 - rows;
-    int xMax = rows - (rows + 1) / 2;
-    int yMin = (cols + 1) / 2 - cols;
-    int yMax = cols - (cols + 1) / 2;
+    const int xMin = (rows + 1) / 2 - rows;
+    const int xMax = rows - (rows + 1) / 2;
+    const int yMin = (cols + 1) / 2 - cols;
+    const int yMax = cols - (cols + 1) / 2;
 
     for (size_t i = 0; i < rows; ++i) {
         int x = newRangeValue(0, rows - 1, xMin, xMax, i);
@@ -162,4 +190,53 @@ int newRangeValue(int oldMin, int oldMax, int newMin, int newMax, int value)
     return (value - oldMin) * (newMax - newMin) / (oldMax - oldMin) + newMin;
 }
 
+void apertureCorrection(const Mat &inputImg, Mat &outputImg, int S)
+{
+    outputImg = Mat::zeros(inputImg.size(), CV_8U);
+    int X = ceil((100.0 / S - 1) + 8);
+    auto sum = 8 * (-1) + X;
+    auto pp = -1.0f / sum;
+    float newX = X / sum;
+    std::vector<std::vector<float>> F {{pp , pp, pp},
+                                       {pp, newX, pp},
+                                       {pp, pp, pp} };
+
+    for (int i = 0; i < inputImg.cols; ++i) {
+        for (int j = 0; j < inputImg.rows; ++j) {
+            float Rez = 0.0f;
+            for (int ii = -1; ii <= 1; ++ii)
+                for (int jj = -1; jj <= 1; ++jj) {
+                    uchar blurred = inputImg.at<uchar>(j + jj, i + ii);
+                    Rez += F[ii + 1][jj + 1] * blurred;
+                }
+            outputImg.at<uchar>(j, i) = Rez;
+        }
+    }
+}
+
+void medianFilter(const Mat &inputImg, Mat &outputImg)
+{
+    outputImg = inputImg.clone();
+    //0. Preparation: Get the width, height and pixel information of the picture,
+    constexpr int num = 3 * 3;
+    std::vector<uchar> pixel(num);
+
+    //Relative to the center point, the position where the point in the 3*3 area needs to be offset
+    constexpr int delta[3 * 3][2] = {
+        {-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 0}, {0, 1}, {1, -1}, {1, 0}, {1, 1}
+    };
+    //1. Median filtering, without considering edges
+    for (int i = 1; i < inputImg.rows - 1; ++i) {
+        for (int j = 1; j < inputImg.cols - 1; ++j) {
+            //1.1 Extract the field value // Use an array to deal with 8 neighborhood values ​​like this is not suitable for larger windows
+            for (int k = 0; k < num; ++k) {
+                pixel[k] = inputImg.at<uchar>(i + delta[k][0], j + delta[k][1]);
+            }
+            //1.2 Sorting // Use the built-in library and sorting
+            std::sort(pixel.begin(), pixel.end());
+            //1.3 Get the value of the center point
+            outputImg.at<uchar>(i, j) = pixel[num / 2];
+        }
+    }
+}
 }
