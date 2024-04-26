@@ -190,6 +190,66 @@ int newRangeValue(int oldMin, int oldMax, int newMin, int newMax, int value)
     return (value - oldMin) * (newMax - newMin) / (oldMax - oldMin) + newMin;
 }
 
+void erosion(const Mat &input_img, Mat &output_img)
+{
+    output_img = Mat::zeros(input_img.size(), CV_8U);
+    for (int i = 1; i < input_img.cols - 1; ++i)
+        for (int j = 1; j < input_img.rows - 1; ++j) {
+            uchar pix_value = input_img.at<uchar>(j, i);
+            float min = 255;
+            for (int ii = -1; ii <= 1; ++ii)
+                for (int jj = -1; jj <= 1; ++jj) {
+                    const uchar Y = input_img.at<uchar>(j + jj, i + ii);
+                    if (Y > min)
+                        continue;
+                    min = Y;
+                }
+            output_img.at<uchar>(j, i) = min;
+        }
+}
+
+void dilation(const Mat &inputImg, Mat &outputImg)
+{
+    outputImg = Mat::zeros(inputImg.size(), CV_8U);
+    for (int i = 1; i < inputImg.cols - 1; ++i)
+        for (int j = 1; j < inputImg.rows - 1; ++j) {
+            uchar pix_value = inputImg.at<uchar>(j, i);
+            float max = 0;
+            for (int ii = -1; ii <= 1; ++ii)
+                for (int jj = -1; jj <= 1; ++jj) {
+                    const uchar Y = inputImg.at<uchar>(j + jj, i + ii);
+                    if (Y < max)
+                        continue;
+                    max = Y;
+                }
+            outputImg.at<uchar>(j, i) = max;
+        }
+}
+
+void countur(const Mat &inputImg, Mat &outputImg)
+{
+    Mat tmp;
+    erosion(inputImg, tmp);
+    outputImg = inputImg - tmp;
+}
+
+Mat opening(const Mat &inputImg, Mat &outputImg)
+{
+    erosion(inputImg, outputImg);
+    Mat tmp;
+    dilation(outputImg, tmp);
+    return tmp;
+}
+
+Mat close(const Mat &inputImg, Mat &outputImg)
+{
+    dilation(inputImg, outputImg);
+    Mat tmp;
+    erosion(outputImg, tmp);
+    return tmp;
+}
+
+
 void apertureCorrection(const Mat &inputImg, Mat &outputImg, int S)
 {
     outputImg = Mat::zeros(inputImg.size(), CV_8U);
@@ -217,24 +277,17 @@ void apertureCorrection(const Mat &inputImg, Mat &outputImg, int S)
 void medianFilter(const Mat &inputImg, Mat &outputImg)
 {
     outputImg = inputImg.clone();
-    //0. Preparation: Get the width, height and pixel information of the picture,
     constexpr int num = 3 * 3;
     std::vector<uchar> pixel(num);
 
-    //Relative to the center point, the position where the point in the 3*3 area needs to be offset
     constexpr int delta[3 * 3][2] = {
         {-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 0}, {0, 1}, {1, -1}, {1, 0}, {1, 1}
     };
-    //1. Median filtering, without considering edges
     for (int i = 1; i < inputImg.rows - 1; ++i) {
         for (int j = 1; j < inputImg.cols - 1; ++j) {
-            //1.1 Extract the field value // Use an array to deal with 8 neighborhood values ​​like this is not suitable for larger windows
-            for (int k = 0; k < num; ++k) {
+            for (int k = 0; k < num; ++k)
                 pixel[k] = inputImg.at<uchar>(i + delta[k][0], j + delta[k][1]);
-            }
-            //1.2 Sorting // Use the built-in library and sorting
             std::sort(pixel.begin(), pixel.end());
-            //1.3 Get the value of the center point
             outputImg.at<uchar>(i, j) = pixel[num / 2];
         }
     }
