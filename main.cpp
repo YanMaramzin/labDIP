@@ -14,15 +14,23 @@ static void onMouse(int event, int x, int y, int, void *param)
 
     cv::Rect block2 = cv::Rect(blockX, blockY, blockSize, blockSize);
     Mat imageBlock = cv::Mat(*img, block2);
-    auto DCT = ImageUtils::discretCosineTransform(ImageUtils::monochromeImage(imageBlock));
-    cv::imshow("DCT", DCT);
+    Mat imageBlock64F;
+    imageBlock.convertTo(imageBlock64F, CV_64F);
+    Mat DCT = ImageUtils::discretCosineTransform(imageBlock);
+    std::cout << DCT << std::endl;
+    Mat tmp = Mat::zeros(blockSize, blockSize, CV_8U);
+    cv::dct(imageBlock64F, tmp);
+    tmp.convertTo(tmp, CV_8U);
+    std::cout << tmp;
+    cv::imshow("DCT", tmp);
+    cv::imwrite("DCT_cv.jpg", tmp);
 
     auto hist = ImageUtils::hist(DCT);
     cv::imshow("Гистограмма", hist);
     cv::imshow("Выбранный блок", imageBlock);
-    cv::Rect block = cv::Rect(blockX, blockY, blockSize, blockSize);
-    rectangle(*img, block, cv::Scalar(1, 255, 255));
-    cv::imshow("Сетка", *img);
+//    cv::Rect block = cv::Rect(blockX, blockY, blockSize, blockSize);
+//    rectangle(*img, block, cv::Scalar(0, 0, 0, 0));
+//    cv::imshow("Сетка", *img);
 
     cv::imwrite("блок.jpg", imageBlock);
     cv::imwrite("DCT.jpg", DCT);
@@ -67,13 +75,13 @@ void lab2()
     for (int row = 0; row < imageMono.rows; row = row + blockSize) {
         for (int col = 0; col < imageMono.cols; col = col + blockSize) {
             cv::Rect block = cv::Rect(col, row, blockSize, blockSize);
-            rectangle(imageWithBlocks, block, cv::Scalar(0, 0, 0));
+            rectangle(imageWithBlocks, block, cv::Scalar(0, 0, 0, 0));
         }
     }
 
     cv::imwrite("Сетка.jpg", imageWithBlocks);
     cv::imshow("Сетка", imageWithBlocks);
-    cv::setMouseCallback("Сетка", onMouse, &image);
+    cv::setMouseCallback("Сетка", onMouse, &imageMono);
 
     cv::waitKey();
 }
@@ -101,7 +109,7 @@ void lab3()
 
     // Апертурная коррекция
     Mat aper;
-    ImageUtils::apertureCorrection(imageMono, aper, 30);
+    ImageUtils::apertureCorrection(imageMono, aper, 15);
     cv::imshow("Апертурная коррекция", aper);
 
     // Медианная фильтрация
@@ -116,7 +124,7 @@ void lab3()
     ImageUtils::medianFilter(imageMonoNoise, med);
     cv::imshow("Медианная фильтрация", med);
 
-    // Разность гауссианов
+     //Разность гауссианов
     Mat diff;
     cv::absdiff(blur52, blur3, diff);
     cv::imshow("Разность гауссианов;", diff * 15);
@@ -128,16 +136,12 @@ void lab3()
 
 
     // Робертс горизонтальные контуры
-    Mat robertX;
-    Mat kernel_x = (cv::Mat_<int>(2, 2) << 1, 0, 0, -1);
-    filter2D(imageMono, robertX, -1, kernel_x, cv::Point(-1, -1), 0.0);
-    cv::imshow("Robert_x", robertX);
+    Mat robertHorizontal = ImageUtils::robertX(imageMono);
+    cv::imshow("robertHorizontal", robertHorizontal);
 
     // Робертс вертикальные контуры
-    Mat robertY;
-    Mat kernel_Y = (cv::Mat_<int>(2, 2) << 0, 1, -1, 0);
-    filter2D(imageMono, robertY, -1, kernel_Y, cv::Point(-1, -1), 0.0);
-    cv::imshow("Robert_y", robertY);
+    Mat robertVertical = ImageUtils::robertY(imageMono);;
+    cv::imshow("robertVertical", robertVertical);
 
     cv::waitKey();
 }
@@ -145,7 +149,9 @@ void lab3()
 void lab4()
 {
     auto image = cv::imread("/home/mist/Downloads/zoro.jpeg");
+    auto air = cv::imread("/home/mist/air.png");
     auto imageMono = ImageUtils::monochromeImage(image);
+    auto airMono = ImageUtils::monochromeImage(air);
     auto imageBinary = ImageUtils::quantizedImage(imageMono, 2);
     Mat imageOutput;
     Mat imageDil;
@@ -163,21 +169,22 @@ void lab4()
     ImageUtils::dilation(imageMono, imageMonoDil);
     Mat openMono = ImageUtils::opening(imageMono, imageOpen);
     Mat closeMono = ImageUtils::close(imageMono, imageClose);
-    cv::imshow("Исходное", imageBinary);
-    cv::imshow("Эрозия", imageOutput);
-    cv::imshow("Дилатация", imageDil);
-    cv::imshow("Открытие", open);
-    cv::imshow("Закрытие", close);
-    cv::imshow("Контур", countur);
+    Mat grad = ImageUtils::multiscaleMorphologicalGradient(imageMono);
+//    cv::imshow("Исходное бинарное", imageBinary);
+//    cv::imshow("Эрозия", imageOutput);
+//    cv::imshow("Дилатация", imageDil);
+//    cv::imshow("Открытие", open);
+//    cv::imshow("Закрытие", close);
+//    cv::imshow("Контур", countur);
 
     cv::imshow("Исходное полутовное", imageMono);
     cv::imshow("Эрозия полутовное", imageMonoEros);
     cv::imshow("Дилатация полутовное", imageMonoDil);
     cv::imshow("Открытие полутовное", openMono);
     cv::imshow("Закрытие полутовное", closeMono);
+    cv::imshow("Градиент", grad);
 
     cv::waitKey();
-    std::cout << "Пока в процессе";
 }
 
 void lab5()

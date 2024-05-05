@@ -2,6 +2,7 @@
 // Created by mist on 19.02.24.
 //
 #include <numeric>
+#include <iostream>
 #include "imageutils.h"
 using cv::Vec3b;
 
@@ -79,28 +80,29 @@ Mat basisMatrix(int rows, int cols)
 {
     Mat basisMatrix = Mat::zeros(rows, cols, CV_64F);
 
-    imageProcessing(basisMatrix, [&basisMatrix](int n, int k)
-    {
-        if (n == 0)
-            basisMatrix.at<double>(n, k) = std::sqrt(1.0f / basisMatrix.rows);
-        else
-            basisMatrix.at<double>(n, k) = sqrt(2.0 / basisMatrix.rows) * cos((M_PI * n) * (k + 1.0f / 2) / basisMatrix.rows);
-    });
+    for(int n = 0; n < basisMatrix.rows; ++n)
+        for(int k = 0; k < basisMatrix.cols; ++k) {
+            if (n == 0)
+                basisMatrix.at<double>(n, k) = std::sqrt(1.0 / basisMatrix.cols);
+            else
+                basisMatrix.at<double>(n, k) = std::sqrt(2.0 / basisMatrix.cols) * std::cos(M_PI * n * (k + 1.0 / 2) / basisMatrix.cols);
+        }
 
-    return basisMatrix;
+    return basisMatrix.t();
 }
 
 Mat discretCosineTransform(const Mat &image)
 {
-    Mat basMat = basisMatrix(image.rows, image.cols);
+    Mat basMat = basisMatrix(image.cols, image.cols);
     Mat basMatTransp = basMat.t();
     Mat imageBlock64F;
     image.convertTo(imageBlock64F, CV_64F);
     Mat matMultiply = basMatTransp * imageBlock64F;
     Mat DCT = matMultiply * basMat;
-    DCT.convertTo(DCT, CV_8U);
+    Mat DCT8U;
+    DCT.convertTo(DCT8U, CV_8U);
 
-    return DCT;
+    return DCT8U;
 }
 
 double sko(const Mat &image, const Mat quantImage)
@@ -190,15 +192,19 @@ int newRangeValue(int oldMin, int oldMax, int newMin, int newMax, int value)
     return (value - oldMin) * (newMax - newMin) / (oldMax - oldMin) + newMin;
 }
 
-void erosion(const Mat &input_img, Mat &output_img)
+void erosion(const Mat &input_img, Mat &output_img, size_t size)
 {
+    const int xMin = (size + 1) / 2 - size;
+    const int xMax = size - (size + 1) / 2;
+    const int yMin = (size + 1) / 2 - size;
+    const int yMax = size - (size + 1) / 2;
+
     output_img = Mat::zeros(input_img.size(), CV_8U);
     for (int i = 1; i < input_img.cols - 1; ++i)
         for (int j = 1; j < input_img.rows - 1; ++j) {
-            uchar pix_value = input_img.at<uchar>(j, i);
             float min = 255;
-            for (int ii = -1; ii <= 1; ++ii)
-                for (int jj = -1; jj <= 1; ++jj) {
+            for (int ii = xMin; ii <= xMax; ++ii)
+                for (int jj = yMin; jj <= yMax; ++jj) {
                     const uchar Y = input_img.at<uchar>(j + jj, i + ii);
                     if (Y > min)
                         continue;
@@ -208,15 +214,19 @@ void erosion(const Mat &input_img, Mat &output_img)
         }
 }
 
-void dilation(const Mat &inputImg, Mat &outputImg)
+void dilation(const Mat &inputImg, Mat &outputImg, size_t size)
 {
+    const int xMin = (size + 1) / 2 - size;
+    const int xMax = size - (size + 1) / 2;
+    const int yMin = (size + 1) / 2 - size;
+    const int yMax = size - (size + 1) / 2;
+
     outputImg = Mat::zeros(inputImg.size(), CV_8U);
     for (int i = 1; i < inputImg.cols - 1; ++i)
         for (int j = 1; j < inputImg.rows - 1; ++j) {
-            uchar pix_value = inputImg.at<uchar>(j, i);
             float max = 0;
-            for (int ii = -1; ii <= 1; ++ii)
-                for (int jj = -1; jj <= 1; ++jj) {
+            for (int ii = xMin; ii <= xMax; ++ii)
+                for (int jj = yMin; jj <= yMax; ++jj) {
                     const uchar Y = inputImg.at<uchar>(j + jj, i + ii);
                     if (Y < max)
                         continue;
@@ -253,7 +263,7 @@ Mat close(const Mat &inputImg, Mat &outputImg)
 void apertureCorrection(const Mat &inputImg, Mat &outputImg, int S)
 {
     outputImg = Mat::zeros(inputImg.size(), CV_8U);
-    int X = ceil((100.0 / S - 1) + 8);
+    int X = ceil((100.0 / (S - 1)) + 8);
     auto sum = 8 * (-1) + X;
     auto pp = -1.0f / sum;
     float newX = X / sum;
@@ -292,4 +302,64 @@ void medianFilter(const Mat &inputImg, Mat &outputImg)
         }
     }
 }
+
+Mat robertX(Mat &image)
+{
+    int kernelX[2][2] = {{1, 0}, {0, -1}};
+    Mat result = Mat::zeros(image.size(), image.type());
+
+    for (int y = 0; y < image.rows - 1; ++y) {
+        for (int x = 0; x < image.cols - 1; ++x) {
+            int sum = 0;
+
+            for (int i = 0; i < 2; ++i) {
+                for (int j = 0; j < 2; ++j)
+                    sum += kernelX[i][j] * image.at<uchar>(y + i, x + j);
+            }
+
+            result.at<uchar>(y, x) = abs(sum);
+        }
+    }
+
+    return result;
+}
+
+Mat robertY(Mat &image)
+{
+    int kernelX[2][2] = {{0, 1}, {-1, 0}};
+    Mat result = Mat::zeros(image.size(), image.type());
+
+    for (int y = 0; y < image.rows - 1; ++y) {
+        for (int x = 0; x < image.cols - 1; ++x) {
+            int sum = 0;
+
+            for (int i = 0; i < 2; ++i) {
+                for (int j = 0; j < 2; ++j)
+                    sum += kernelX[i][j] * image.at<uchar>(y + i, x + j);
+            }
+
+            result.at<uchar>(y, x) = abs(sum);
+        }
+    }
+
+    return result;
+}
+
+Mat multiscaleMorphologicalGradient(const Mat &inputImg)
+{
+    Mat outputImg = Mat::zeros(inputImg.size(), CV_8U);
+    for (int i = 1; i <= 3; ++i) {
+        Mat tmpDilation = Mat::zeros(inputImg.size(), CV_8U);
+        Mat tmpErosion = Mat::zeros(inputImg.size(), CV_8U);
+        Mat tmp = Mat::zeros(inputImg.size(), CV_8U);
+        dilation(inputImg, tmpDilation, 2*i + 1);
+        erosion(inputImg, tmpErosion, 2*i + 1);
+        Mat raz = tmpDilation - tmpErosion;
+        erosion(raz, tmp, 2 * (i - 1) + 1);
+        outputImg += tmp;
+    }
+
+    return outputImg / 3;
+}
+
 }

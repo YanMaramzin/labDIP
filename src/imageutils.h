@@ -34,10 +34,14 @@ void apertureCorrection(const Mat &inputImg, Mat &outputImg, int S);
 void medianFilter(const Mat &inputImg, Mat &outputImg);
 std::vector<std::vector<double>> gaussMask(const float sigma, int rows, int cols);
 int newRangeValue(int oldMin, int oldMax, int newMin, int newMax, int value);
-void erosion(const Mat &input_img, Mat &output_img);
-void dilation(const Mat &inputImg, Mat &outputImg);
-void countur(const Mat &inputImg, Mat &outputImg);
+Mat robertX(Mat &image);
+Mat robertY(Mat &image);
 
+void erosion(const Mat &input_img, Mat &output_img, size_t size = 3);
+void dilation(const Mat &inputImg, Mat &outputImg, size_t size = 3);
+void countur(const Mat &inputImg, Mat &outputImg);
 Mat opening(const Mat &inputImg, Mat &outputImg);
 Mat close(const Mat &inputImg, Mat &outputImg);
+Mat multiscaleMorphologicalGradient(const Mat &inputImg);
+
 }
