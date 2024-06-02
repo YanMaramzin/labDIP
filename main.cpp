@@ -28,9 +28,9 @@ static void onMouse(int event, int x, int y, int, void *param)
     auto hist = ImageUtils::hist(DCT);
     cv::imshow("Гистограмма", hist);
     cv::imshow("Выбранный блок", imageBlock);
-//    cv::Rect block = cv::Rect(blockX, blockY, blockSize, blockSize);
-//    rectangle(*img, block, cv::Scalar(0, 0, 0, 0));
-//    cv::imshow("Сетка", *img);
+    //    cv::Rect block = cv::Rect(blockX, blockY, blockSize, blockSize);
+    //    rectangle(*img, block, cv::Scalar(0, 0, 0, 0));
+    //    cv::imshow("Сетка", *img);
 
     cv::imwrite("блок.jpg", imageBlock);
     cv::imwrite("DCT.jpg", DCT);
@@ -53,7 +53,7 @@ void lab1()
     auto intervalQuant = 255.0 / (quantLevel - 1);
     auto sko = ImageUtils::sko(imageMono, quant);
     auto skoOt = intervalQuant / sqrt(12);
-    std::cout << sko  << " " << skoOt;
+    std::cout << sko << " " << skoOt;
     auto quantHist = ImageUtils::hist(quant);
     resize(quant, quant, cv::Size(width, heigth));
     resize(quantHist, quantHist, cv::Size(width, heigth));
@@ -124,7 +124,7 @@ void lab3()
     ImageUtils::medianFilter(imageMonoNoise, med);
     cv::imshow("Медианная фильтрация", med);
 
-     //Разность гауссианов
+    //Разность гауссианов
     Mat diff;
     cv::absdiff(blur52, blur3, diff);
     cv::imshow("Разность гауссианов;", diff * 15);
@@ -149,9 +149,7 @@ void lab3()
 void lab4()
 {
     auto image = cv::imread("/home/mist/Downloads/zoro.jpeg");
-    auto air = cv::imread("/home/mist/air.png");
     auto imageMono = ImageUtils::monochromeImage(image);
-    auto airMono = ImageUtils::monochromeImage(air);
     auto imageBinary = ImageUtils::quantizedImage(imageMono, 2);
     Mat imageOutput;
     Mat imageDil;
@@ -170,12 +168,12 @@ void lab4()
     Mat openMono = ImageUtils::opening(imageMono, imageOpen);
     Mat closeMono = ImageUtils::close(imageMono, imageClose);
     Mat grad = ImageUtils::multiscaleMorphologicalGradient(imageMono);
-//    cv::imshow("Исходное бинарное", imageBinary);
-//    cv::imshow("Эрозия", imageOutput);
-//    cv::imshow("Дилатация", imageDil);
-//    cv::imshow("Открытие", open);
-//    cv::imshow("Закрытие", close);
-//    cv::imshow("Контур", countur);
+    cv::imshow("Исходное бинарное", imageBinary);
+    cv::imshow("Эрозия", imageOutput);
+    cv::imshow("Дилатация", imageDil);
+    cv::imshow("Открытие", open);
+    cv::imshow("Закрытие", close);
+    cv::imshow("Контур", countur);
 
     cv::imshow("Исходное полутовное", imageMono);
     cv::imshow("Эрозия полутовное", imageMonoEros);
@@ -189,6 +187,86 @@ void lab4()
 
 void lab5()
 {
+    auto image = cv::imread("/home/mist/Downloads/zoro.jpeg");
+    auto imageMono = ImageUtils::monochromeImage(image);
+
+    int block_size = 8;
+
+    // Вычисляем количество блоков по горизонтали и вертикали
+    int num_blocks_x = image.cols / block_size;
+    int num_blocks_y = image.rows / block_size;
+
+    // Создаем вектор, который будет хранить блоки изображения
+    std::vector<cv::Mat> blocks;
+    blocks.reserve(num_blocks_x * num_blocks_y);
+
+    // Разбиваем изображение на блоки
+    for (int y = 0; y < num_blocks_y; ++y) {
+        for (int x = 0; x < num_blocks_x; ++x) {
+            int x_start = x * block_size;
+            int y_start = y * block_size;
+            cv::Mat block = imageMono(cv::Rect(x_start, y_start, block_size, block_size)).clone();
+            block.convertTo(block, CV_64FC1);
+            blocks.push_back(block);
+        }
+    }
+
+    std::vector<cv::Mat> dtcVector;
+    dtcVector.reserve(blocks.size());
+
+    for (auto &block : blocks) {
+        block -= 128.0;
+        dtcVector.push_back(ImageUtils::discretCosineTransform(block));
+    }
+
+    cv::Mat gamma = cv::Mat::zeros(8, 8, CV_64FC1);
+    int s = 21; // Ввод коэффициента масштаба квантования
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j)
+            gamma.at<double>(i, j) = 8 + (i + j) * s;
+    }
+
+    for (auto &dct : dtcVector)
+        for (int i = 0; i < 8; ++i)
+            for (int j = 0; j < 8; ++j)
+                dct.at<double>(i, j) = std::round(dct.at<double>(i, j) / gamma.at<double>(i, j));
+
+    for (auto &dct : dtcVector) {
+        dct += 128.0;
+        dct.convertTo(dct, CV_8UC1);
+    }
+
+    std::vector<cv::Mat> iDct;
+    iDct.reserve(dtcVector.size());
+
+    for (auto &dct : dtcVector) {
+        dct.convertTo(dct, CV_64FC1);
+        cv::subtract(dct, 128.0, dct);
+        cv::multiply(dct, gamma, dct);
+        iDct.push_back(ImageUtils::inversDiscretTransform(dct));
+    }
+
+    for (auto &i : iDct)
+        i.convertTo(i, CV_8UC1);
+
+    // Вертикально объединяем блоки
+    std::vector<cv::Mat> rows;
+    for (int y = 0; y < num_blocks_y; ++y) {
+        std::vector<cv::Mat> row_blocks;
+        for (int x = 0; x < num_blocks_x; ++x)
+            row_blocks.push_back(iDct[y * num_blocks_x + x]);
+        cv::Mat row;
+        cv::hconcat(row_blocks, row);
+        rows.push_back(row);
+    }
+
+    // Горизонтально объединяем ряды
+    cv::Mat result;
+    cv::vconcat(rows, result);
+    cv::imshow("ss", imageMono);
+    cv::imshow("Восст", result);
+    cv::waitKey();
+
     std::cout << "Пока в процессе";
 }
 

@@ -88,22 +88,33 @@ Mat basisMatrix(int rows, int cols)
                 basisMatrix.at<double>(n, k) = std::sqrt(2.0 / basisMatrix.cols) * std::cos(M_PI * n * (k + 1.0 / 2) / basisMatrix.cols);
         }
 
-    return basisMatrix.t();
+    return basisMatrix;
 }
 
 Mat discretCosineTransform(const Mat &image)
 {
     Mat basMat = basisMatrix(image.cols, image.cols);
     Mat basMatTransp = basMat.t();
-    Mat imageBlock64F;
-    image.convertTo(imageBlock64F, CV_64F);
-    Mat matMultiply = basMatTransp * imageBlock64F;
-    Mat DCT = matMultiply * basMat;
-    Mat DCT8U;
-    DCT.convertTo(DCT8U, CV_8U);
+    // Mat imageBlock64F;
+    // image.convertTo(imageBlock64F, CV_64F);
+    Mat matMultiply = basMat * image;
+    Mat DCT = matMultiply * basMatTransp;
 
-    return DCT8U;
+    return DCT;
 }
+
+Mat inversDiscretTransform(const Mat &image)
+{
+    Mat basMat = basisMatrix(image.cols, image.cols);
+    Mat basMatTransp = basMat.t();
+    // Mat imageBlock64F;
+    // image.convertTo(imageBlock64F, CV_64F);
+    Mat matMultiply = basMatTransp * image;
+    Mat im = matMultiply * basMat;
+
+    return im;
+}
+
 
 double sko(const Mat &image, const Mat quantImage)
 {
@@ -356,10 +367,10 @@ Mat multiscaleMorphologicalGradient(const Mat &inputImg)
         erosion(inputImg, tmpErosion, 2*i + 1);
         Mat raz = tmpDilation - tmpErosion;
         erosion(raz, tmp, 2 * (i - 1) + 1);
-        outputImg += tmp;
+        outputImg += tmp / 3;
     }
 
-    return outputImg / 3;
+    return outputImg;
 }
 
 }
